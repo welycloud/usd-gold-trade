@@ -1,0 +1,56 @@
+name: 🟡 Boletín Diario ORO
+
+on:
+  schedule:
+    # 12:00 UTC = 08:00 EDT (horario verano, abr-oct)
+    - cron: "0 12 * * 1-5"
+    # 13:00 UTC = 08:00 EST (horario invierno, nov-mar)
+    - cron: "0 13 * * 1-5"
+
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: "Forzar ejecucion aunque este fuera de ventana horaria"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+jobs:
+  bulletin:
+    name: Generar y enviar boletin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: pip install --quiet -r requirements.txt
+
+      - name: Ejecutar boletin ORO
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }}
+        run: python gold_bulletin.py
+
+      - name: Subir logs en caso de fallo
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bulletin-failure-log
+          path: "*.log"
+          if-no-files-found: ignore
+          retention-days: 7
