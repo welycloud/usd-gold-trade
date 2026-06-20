@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 import os, sys, subprocess, tempfile, time
 from datetime import datetime
-import pytz, requests
-from bs4 import BeautifulSoup
-from duckduckgo_search import DDGS
-import google.generativeai as genai
+import pytz
+from ddgs import DDGS
+from google import genai
 
 NTFY_URL = "https://ntfy.sh/oro-fran-7k4xq2"
 MODEL    = "gemini-2.0-flash"
 TZ_ET    = pytz.timezone("America/New_York")
-HEADERS  = {"User-Agent": "Mozilla/5.0"}
 
 PROMPT = """Actua como analista financiero especializado en ORO (XAU/USD).
 Tienes datos frescos de la web. Usa SOLO esos datos, no inventes precios.
@@ -43,9 +41,10 @@ def check_schedule():
 
 def search_ddg(q, n=3):
     try:
-        with DDGS() as d: res = list(d.text(q, max_results=n))
-        return "\n".join(f"[{r['href']}] {r['title']}: {r['body']}" for r in res)
-    except Exception as e: return f"[error: {e}]"
+        results = DDGS().text(q, max_results=n)
+        return "\n".join(f"[{r['href']}] {r['title']}: {r['body']}" for r in results)
+    except Exception as e:
+        return f"[error: {e}]"
 
 def gather_data():
     now = datetime.now(TZ_ET).strftime("%Y-%m-%d %H:%M ET")
@@ -53,52 +52,56 @@ def gather_data():
     parts = [f"=== {now} ==="]
     for label, q in [
         ("PRECIO XAU/USD", "XAU USD gold spot price today"),
-        ("TECNICO", "gold XAU USD technical analysis support resistance today"),
-        ("DXY/BONOS", "DXY dollar index US 10yr yield today"),
-        ("CALENDARIO", "economic calendar high impact events today forex"),
-        ("MACRO", "gold market outlook sentiment today"),
+        ("TECNICO",        "gold XAU USD technical analysis support resistance today"),
+        ("DXY/BONOS",      "DXY dollar index US 10yr yield today"),
+        ("CALENDARIO",     "economic calendar high impact events today forex"),
     ]:
         print(f"  -> {label}")
         parts.append(f"--- {label} ---\n{search_ddg(q)}")
     return "\n".join(parts)
 
 def generate(data):
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     print(f"[INFO] Llamando {MODEL}...")
-    for attempt in range(4):
+    for attempt in range(2):
         try:
-            r = genai.GenerativeModel(MODEL).generate_content(PROMPT.format(market_data=data))
-            return (r.text or "").strip()
+            resp = client.models.generate_content(
+                model=MODEL,
+                contents=PROMPT.format(market_data=data)
+            )
+            return (resp.text or "").strip()
         except Exception as e:
             msg = str(e)
-            if "429" in msg or "quota" in msg.lower() or "exhausted" in msg.lower():
-                wait = 60 * (attempt + 1)
-                print(f"[WARN] 429 quota - reintento {attempt+1}/3 en {wait}s...")
-                time.sleep(wait)
+            if ("429" in msg or "quota" in msg.lower() or "exhausted" in msg.lower()) and attempt == 0:
+                print(f"[WARN] 429 - esperando 30s antes de reintentar...")
+                time.sleep(30)
             else:
                 raise
-    raise RuntimeError("Fallaron todos los reintentos por quota 429")
+    raise RuntimeError("Fallo tras reintento por quota")
 
 def send_ntfy(text):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
         f.write(text); tmp = f.name
     try:
         r = subprocess.run(
-            ["curl","-s","-w","\nHTTP:%{http_code}","-H","Title: Boletin ORO",
-             "-H","Priority: high","-H","Tags: moneybag","--data-binary",f"@{tmp}",NTFY_URL],
+            ["curl","-s","-w","\nHTTP:%{http_code}",
+             "-H","Title: Boletin ORO","-H","Priority: high","-H","Tags: moneybag",
+             "--data-binary",f"@{tmp}", NTFY_URL],
             capture_output=True, text=True, timeout=30)
         code = next((l.split(":")[1] for l in r.stdout.splitlines() if l.startswith("HTTP:")), "?")
-        print(f"[ntfy] {code}"); return code == "200"
-    finally: os.unlink(tmp)
+        print(f"[ntfy] HTTP {code}"); return code == "200"
+    finally:
+        os.unlink(tmp)
 
 def main():
     print(f"=== Boletin ORO | UTC {datetime.utcnow():%Y-%m-%d %H:%M} ===")
-    # PRUEBA TEMPORAL - horario desactivado
+    # PRUEBA: horario desactivado temporalmente
     # if not check_schedule(): sys.exit(0)
     data = gather_data()
     bulletin = generate(data)
     if not bulletin: print("[ERROR] Sin respuesta"); sys.exit(1)
-    print(bulletin[:200])
+    print(bulletin[:300])
     if not send_ntfy(bulletin): sys.exit(1)
+    print("[OK] Boletin enviado exitosamente.")
 
 if __name__ == "__main__": main()
