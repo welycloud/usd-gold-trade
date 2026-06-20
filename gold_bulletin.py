@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, subprocess, tempfile
+import os, sys, subprocess, tempfile, time
 from datetime import datetime
 import pytz, requests
 from bs4 import BeautifulSoup
@@ -35,7 +35,6 @@ Fuentes: [..] | Solo analisis, no asesoria.
 DEVUELVE UNICAMENTE EL BOLETIN. DATOS:
 {market_data}"""
 
-
 def check_schedule():
     now = datetime.now(TZ_ET)
     if now.weekday() >= 5 or now.hour != 8:
@@ -66,8 +65,19 @@ def gather_data():
 def generate(data):
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
     print(f"[INFO] Llamando {MODEL}...")
-    r = genai.GenerativeModel(MODEL).generate_content(PROMPT.format(market_data=data))
-    return (r.text or "").strip()
+    for attempt in range(4):
+        try:
+            r = genai.GenerativeModel(MODEL).generate_content(PROMPT.format(market_data=data))
+            return (r.text or "").strip()
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg or "quota" in msg.lower() or "exhausted" in msg.lower():
+                wait = 60 * (attempt + 1)
+                print(f"[WARN] 429 quota - reintento {attempt+1}/3 en {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+    raise RuntimeError("Fallaron todos los reintentos por quota 429")
 
 def send_ntfy(text):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
