@@ -7,7 +7,7 @@ from duckduckgo_search import DDGS
 import google.generativeai as genai
 
 NTFY_URL = "https://ntfy.sh/oro-fran-7k4xq2"
-MODEL    = "gemini-1.5-flash"
+MODEL    = "gemini-2.0-flash"
 TZ_ET    = pytz.timezone("America/New_York")
 HEADERS  = {"User-Agent": "Mozilla/5.0"}
 
