@@ -95,7 +95,8 @@ def send_ntfy(text):
 
 def main():
     print(f"=== Boletin ORO | UTC {datetime.utcnow():%Y-%m-%d %H:%M} ===")
-    if not check_schedule(): sys.exit(0)
+    # PRUEBA - horario desactivado
+    # if not check_schedule(): sys.exit(0)
     data = gather_data()
     bulletin = generate(data)
     if not bulletin: print("[ERROR] Sin respuesta"); sys.exit(1)
