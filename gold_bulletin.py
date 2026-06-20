@@ -3,7 +3,8 @@
 🟡 Boletín Diario ORO (XAU/USD)
 Rutina autónoma — corre en GitHub Actions, sin PC encendido.
 Verifica ventana 08:00-09:00 ET (lunes-viernes), genera análisis
-con Claude + web search y lo envía vía ntfy.sh.
+con Gemini + Google Search grounding y lo envía vía ntfy.sh.
+100% gratuito (Google AI Studio free tier).
 """
 
 import os
@@ -13,14 +14,12 @@ import tempfile
 from datetime import datetime
 
 import pytz
-import anthropic
+import google.generativeai as genai
 
 # ── Configuración ────────────────────────────────────────────────────────────
-NTFY_URL   = "https://ntfy.sh/oro-fran-7k4xq2"
-MODEL      = "claude-sonnet-4-5"
-MAX_TOKENS = 4096
-MAX_SEARCHES = 15
-TZ_ET      = pytz.timezone("America/New_York")
+NTFY_URL     = "https://ntfy.sh/oro-fran-7k4xq2"
+MODEL        = "gemini-2.0-flash"
+TZ_ET        = pytz.timezone("America/New_York")
 
 # ── Prompt completo ──────────────────────────────────────────────────────────
 PROMPT = """
@@ -103,28 +102,18 @@ def check_schedule():
 
 
 def generate_bulletin():
-    """Llama a Claude con web search y retorna el texto del boletín."""
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    """Llama a Gemini con Google Search grounding y retorna el boletín."""
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-    print(f"[INFO] Llamando {MODEL} con web search ({MAX_SEARCHES} búsquedas máx.)…")
+    print(f"[INFO] Llamando {MODEL} con Google Search grounding…")
 
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        tools=[{
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": MAX_SEARCHES,
-        }],
-        messages=[{"role": "user", "content": PROMPT}],
+    model = genai.GenerativeModel(MODEL)
+    response = model.generate_content(
+        PROMPT,
+        tools="google_search_retrieval",
     )
 
-    bulletin = "\n".join(
-        block.text
-        for block in response.content
-        if hasattr(block, "text") and block.text.strip()
-    ).strip()
-
+    bulletin = response.text.strip() if response.text else ""
     print(f"[INFO] Respuesta recibida: {len(bulletin)} caracteres")
     return bulletin
 
@@ -173,7 +162,7 @@ def send_to_ntfy(text):
 
 def main():
     print("=" * 60)
-    print("🟡 Boletín ORO — inicio de rutina")
+    print("🟡 Boletín ORO — inicio de rutina (Gemini, free tier)")
     print(f"   UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
@@ -184,11 +173,11 @@ def main():
     bulletin = generate_bulletin()
 
     if not bulletin:
-        print("[ERROR] Claude no devolvió contenido.")
+        print("[ERROR] Gemini no devolvió contenido.")
         sys.exit(1)
 
     if "FUERA_DE_VENTANA" in bulletin:
-        print("[SKIP] Claude confirmó estar fuera de ventana horaria.")
+        print("[SKIP] Gemini confirmó estar fuera de ventana horaria.")
         sys.exit(0)
 
     preview = "\n".join(bulletin.splitlines()[:3])
