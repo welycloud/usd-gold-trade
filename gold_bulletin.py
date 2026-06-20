@@ -166,9 +166,10 @@ def main():
     print(f"   UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
-    if not check_schedule():
-        print("[FIN] Rutina terminada sin enviar.")
-        sys.exit(0)
+    # PRUEBA TEMPORAL — verificación de horario desactivada
+    # if not check_schedule():
+    #     print("[FIN] Rutina terminada sin enviar.")
+    #     sys.exit(0)
 
     bulletin = generate_bulletin()
 
