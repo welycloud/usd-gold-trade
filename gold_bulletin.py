@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-import os, sys, subprocess, tempfile, time
+import os, sys, subprocess, tempfile
 from datetime import datetime
 import pytz
 from ddgs import DDGS
-from google import genai
+from groq import Groq
 
 NTFY_URL = "https://ntfy.sh/oro-fran-7k4xq2"
-MODEL    = "gemini-2.0-flash"
+MODEL    = "llama-3.3-70b-versatile"
 TZ_ET    = pytz.timezone("America/New_York")
 
 PROMPT = """Actua como analista financiero especializado en ORO (XAU/USD).
@@ -61,23 +61,15 @@ def gather_data():
     return "\n".join(parts)
 
 def generate(data):
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
     print(f"[INFO] Llamando {MODEL}...")
-    for attempt in range(2):
-        try:
-            resp = client.models.generate_content(
-                model=MODEL,
-                contents=PROMPT.format(market_data=data)
-            )
-            return (resp.text or "").strip()
-        except Exception as e:
-            msg = str(e)
-            if ("429" in msg or "quota" in msg.lower() or "exhausted" in msg.lower()) and attempt == 0:
-                print(f"[WARN] 429 - esperando 30s antes de reintentar...")
-                time.sleep(30)
-            else:
-                raise
-    raise RuntimeError("Fallo tras reintento por quota")
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": PROMPT.format(market_data=data)}],
+        max_tokens=2048,
+        temperature=0.3,
+    )
+    return (resp.choices[0].message.content or "").strip()
 
 def send_ntfy(text):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
@@ -102,6 +94,6 @@ def main():
     if not bulletin: print("[ERROR] Sin respuesta"); sys.exit(1)
     print(bulletin[:300])
     if not send_ntfy(bulletin): sys.exit(1)
-    print("[OK] Boletin enviado exitosamente.")
+    print("[OK] Boletin enviado.")
 
 if __name__ == "__main__": main()
