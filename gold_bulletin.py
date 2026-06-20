@@ -5,7 +5,7 @@ import pytz
 from ddgs import DDGS
 from groq import Groq
 
-NTFY_URL = "https://ntfy.sh/oro-fran-7k4xq2"
+NTFY_URL = "https://ntfy.sh/USD-GOLD"
 MODEL    = "llama-3.3-70b-versatile"
 TZ_ET    = pytz.timezone("America/New_York")
 
