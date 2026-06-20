@@ -42,7 +42,7 @@ jobs:
 
       - name: Ejecutar boletin ORO
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }}
         run: python gold_bulletin.py
 
