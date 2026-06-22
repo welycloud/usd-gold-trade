@@ -8,19 +8,27 @@ from groq import Groq
 NTFY_URL = "https://ntfy.sh/USD-GOLD"
 MODEL    = "llama-3.3-70b-versatile"
 TZ_ET    = pytz.timezone("America/New_York")
+TZ_CL    = pytz.timezone("America/Santiago")
+
+DIAS_ES  = ["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"]
+MESES_ES = ["enero","febrero","marzo","abril","mayo","junio",
+            "julio","agosto","septiembre","octubre","noviembre","diciembre"]
 
 PROMPT = """Actua como analista financiero especializado en ORO (XAU/USD).
 Tienes datos frescos de la web. Usa SOLO esos datos, no inventes precios.
-Redacta el boletin con estructura:
+La fecha de HOY viene en los datos como HOY ES: — usala exactamente, no la cambies ni corrijas.
+
+Redacta el boletin:
 1) RESUMEN PRE-APERTURA (sesiones, DXY, bonos, sentiment).
 2) CATALIZADORES DEL DIA (evento - hora Santiago - impacto - sesgo).
 3) ANALISIS TECNICO (tendencia, soportes/resistencias, momentum).
 4) PLAN OPERATIVO (COMPRA/VENTA/ESPERAR; entrada; SL; TP1; TP2; R:R; confianza; invalidacion).
 5) ESCENARIO ALTERNATIVO.
 6) NOTA DE RIESGO (SL obligatorio, max 1pct capital).
+7) FUENTES: lista 3-5 URLs de los datos recibidos.
 
 Formato para celular:
-BOLETIN ORO - [fecha] | 1h antes apertura NY
+BOLETIN ORO - [fecha de HOY ES exacta] | 1h antes apertura NY
 PRE-APERTURA: [...]
 CATALIZADORES: [...]
 TECNICO: Tendencia [..] | S [..] / R [..]
@@ -28,7 +36,11 @@ PLAN:
 > [COMPRA/VENTA/ESPERAR] Entrada [..] SL [..] TP1 [..] TP2 [..]
 > R:R [..] | Confianza [..] | Invalida si [..]
 ALTERNATIVO: [..]
-Fuentes: [..] | Solo analisis, no asesoria.
+FUENTES:
+- [titulo]: [URL]
+- [titulo]: [URL]
+- [titulo]: [URL]
+Solo analisis, no asesoria.
 
 DEVUELVE UNICAMENTE EL BOLETIN. DATOS:
 {market_data}"""
@@ -39,6 +51,10 @@ def check_schedule():
         print(f"[SKIP] {now.strftime('%A %H:%M')} ET"); return False
     return True
 
+def get_fecha_hoy():
+    now = datetime.now(TZ_CL)
+    return f"{DIAS_ES[now.weekday()]} {now.day} de {MESES_ES[now.month-1]} de {now.year}"
+
 def search_ddg(q, n=3):
     try:
         results = DDGS().text(q, max_results=n)
@@ -47,9 +63,11 @@ def search_ddg(q, n=3):
         return f"[error: {e}]"
 
 def gather_data():
-    now = datetime.now(TZ_ET).strftime("%Y-%m-%d %H:%M ET")
+    now_et = datetime.now(TZ_ET).strftime("%Y-%m-%d %H:%M ET")
+    fecha  = get_fecha_hoy()
+    print(f"[INFO] Fecha Santiago: {fecha}")
     print("[INFO] Buscando datos...")
-    parts = [f"=== {now} ==="]
+    parts = [f"=== HOY ES: {fecha} | {now_et} ==="]
     for label, q in [
         ("PRECIO XAU/USD", "XAU USD gold spot price today"),
         ("TECNICO",        "gold XAU USD technical analysis support resistance today"),
