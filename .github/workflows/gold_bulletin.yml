@@ -3,9 +3,9 @@ name: 🟡 Boletín Diario ORO
 on:
   schedule:
     # 12:00 UTC = 08:00 EDT (horario verano, abr-oct)
-    - cron: "0 12 * * 1-5"
+    - cron: "7 12 * * 1-5"
     # 13:00 UTC = 08:00 EST (horario invierno, nov-mar)
-    - cron: "0 13 * * 1-5"
+    - cron: "7 13 * * 1-5"
 
   workflow_dispatch:
     inputs:
