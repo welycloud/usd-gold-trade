@@ -14,41 +14,70 @@ DIAS_ES  = ["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"]
 MESES_ES = ["enero","febrero","marzo","abril","mayo","junio",
             "julio","agosto","septiembre","octubre","noviembre","diciembre"]
 
-PROMPT = """Actua como analista financiero especializado en ORO (XAU/USD).
-Tienes datos frescos de la web. Usa SOLO esos datos, no inventes precios.
-La fecha de HOY viene en los datos como HOY ES: — usala exactamente, no la cambies ni corrijas.
+PROMPT = """Eres un analista financiero y trader profesional que redacta un BOLETIN EJECUTIVO para XAU/USD.
+Tu lector es inteligente pero tiene poco tiempo: debe entender la idea en 15 segundos.
+Eres riguroso y prefieres decir "sin senal clara" antes que forzar un setup.
 
-Redacta el boletin:
-1) RESUMEN PRE-APERTURA (sesiones, DXY, bonos, sentiment).
-2) CATALIZADORES DEL DIA (evento - hora Santiago - impacto - sesgo).
-3) ANALISIS TECNICO (tendencia, soportes/resistencias, momentum).
-4) PLAN OPERATIVO (COMPRA/VENTA/ESPERAR; entrada; SL; TP1; TP2; R:R; confianza; invalidacion).
-5) ESCENARIO ALTERNATIVO.
-6) NOTA DE RIESGO (SL obligatorio, max 1pct capital).
-7) FUENTES: lista 3-5 URLs de los datos recibidos.
+Tienes datos frescos de busquedas web que incluyen precio actual, analisis tecnico en multiples temporalidades,
+nivel del dolar (DXY), rendimiento de bonos, noticias macro y calendario economico.
+Usa SOLO esos datos. No inventes precios ni niveles.
+La fecha exacta de hoy viene en los datos como HOY ES: — usala tal cual.
 
-Formato para celular:
-BOLETIN ORO - [fecha de HOY ES exacta] | 1h antes apertura NY
-PRE-APERTURA: [...]
-CATALIZADORES: [...]
-TECNICO: Tendencia [..] | S [..] / R [..]
-PLAN:
-> [COMPRA/VENTA/ESPERAR] Entrada [..] SL [..] TP1 [..] TP2 [..]
-> R:R [..] | Confianza [..] | Invalida si [..]
-ALTERNATIVO: [..]
-FUENTES:
-- [titulo]: [URL]
-- [titulo]: [URL]
-- [titulo]: [URL]
-Solo analisis, no asesoria.
+FORMATO DE SALIDA — respeta esta estructura y orden exactos:
 
-DEVUELVE UNICAMENTE EL BOLETIN. DATOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BOLETIN XAU/USD · [fecha de HOY ES exacta] · 8:30 AM ET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESUMEN EJECUTIVO (TL;DR)
+Una sola frase con el veredicto. Ej: "Sesgo alcista en marcos mayores; se busca compra en retroceso hacia [nivel]."
+
+SEMAFORO
+Direccion:   COMPRA / VENTA / NO OPERAR
+Confianza:   Alta / Media / Baja
+Confluencia: Las temporalidades apuntan al mismo lado? Si / Parcial / No
+
+LECTURA POR TEMPORALIDAD
+Marco | Tendencia | Nota clave (1 linea)
+  Semanal | Alza/Baja/Lateral | ...
+  Diario  | Alza/Baja/Lateral | ...
+  4H      | Alza/Baja/Lateral | ...
+  1H      | Alza/Baja/Lateral | ...
+"Lo mayor manda el sesgo; lo menor afina la entrada."
+
+PLAN OPERATIVO
+  Direccion:   COMPRA / VENTA
+  Entrada:     [precio o rango] — motivo tecnico
+  Stop Loss:   [nivel] — que lo invalida
+  Take Profit: TP1 [nivel] / TP2 [nivel]
+  Ratio R/B:   1:X
+  Invalidacion: que tendria que pasar para descartar la idea
+
+CONTEXTO DE MERCADO
+2-3 puntos con el driver del momento (macro, datos, eventos).
+Cada punto termina con la fuente citada entre parentesis con URL.
+
+PARA SEGUIR LEYENDO
+3-4 enlaces relevantes y actuales:
+  - [Titulo] — que aporta — URL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Analisis tecnico, no asesoria financiera. Sin garantia de resultado.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGLAS ESTRICTAS:
+- Si las temporalidades se contradicen sin sesgo dominante: NO OPERAR y explica que confirmacion esperarias.
+- Numeros concretos, nada de generalidades.
+- Cada afirmacion de contexto debe tener fuente con URL real de los datos recibidos.
+- No excedas una pantalla: el lector debe poder leerlo de corrido en el celular.
+- DEVUELVE UNICAMENTE EL BOLETIN, sin texto previo ni posterior.
+
+DATOS:
 {market_data}"""
 
 def check_schedule():
     now = datetime.now(TZ_ET)
-    if now.weekday() >= 5 or now.hour != 8:
-        print(f"[SKIP] {now.strftime('%A %H:%M')} ET"); return False
+    if now.weekday() >= 5:
+        print(f"[SKIP] Fin de semana {now.strftime('%A')} ET"); return False
     return True
 
 def get_fecha_hoy():
@@ -69,10 +98,11 @@ def gather_data():
     print("[INFO] Buscando datos...")
     parts = [f"=== HOY ES: {fecha} | {now_et} ==="]
     for label, q in [
-        ("PRECIO XAU/USD", "XAU USD gold spot price today"),
-        ("TECNICO",        "gold XAU USD technical analysis support resistance today"),
-        ("DXY/BONOS",      "DXY dollar index US 10yr yield today"),
-        ("CALENDARIO",     "economic calendar high impact events today forex"),
+        ("PRECIO XAU/USD",    "XAU USD gold spot price today"),
+        ("TECNICO MULTI-TF",  "gold XAU USD technical analysis weekly daily 4H 1H support resistance trend today"),
+        ("DXY/BONOS",         "DXY dollar index US 10yr treasury yield today"),
+        ("MACRO/NOTICIAS",    "gold price news macro drivers federal reserve inflation today"),
+        ("CALENDARIO",        "economic calendar high impact events today USD gold forex"),
     ]:
         print(f"  -> {label}")
         parts.append(f"--- {label} ---\n{search_ddg(q)}")
@@ -105,6 +135,7 @@ def send_ntfy(text):
 
 def main():
     print(f"=== Boletin ORO | UTC {datetime.utcnow():%Y-%m-%d %H:%M} ===")
+    if not check_schedule(): sys.exit(0)
     data = gather_data()
     bulletin = generate(data)
     if not bulletin: print("[ERROR] Sin respuesta"); sys.exit(1)
