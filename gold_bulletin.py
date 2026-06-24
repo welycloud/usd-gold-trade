@@ -23,11 +23,10 @@ nivel del dolar (DXY), rendimiento de bonos, noticias macro y calendario economi
 Usa SOLO esos datos. No inventes precios ni niveles.
 La fecha exacta de hoy viene en los datos como HOY ES: — usala tal cual.
 
-FORMATO DE SALIDA — respeta esta estructura y orden exactos:
+FORMATO DE SALIDA — respeta esta estructura y orden exactos, sin lineas separadoras:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BOLETIN XAU/USD · [fecha de HOY ES exacta] · 8:30 AM ET
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 BOLETIN ORO · [fecha de HOY ES exacta] · 8:30 AM ET
+
 RESUMEN EJECUTIVO (TL;DR)
 Una sola frase con el veredicto. Ej: "Sesgo alcista en marcos mayores; se busca compra en retroceso hacia [nivel]."
 
@@ -60,11 +59,10 @@ PARA SEGUIR LEYENDO
 3-4 enlaces relevantes y actuales:
   - [Titulo] — que aporta — URL
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Analisis tecnico, no asesoria financiera. Sin garantia de resultado.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 REGLAS ESTRICTAS:
+- Sin lineas separadoras (no uses ━ ni --- ni ===).
 - Si las temporalidades se contradicen sin sesgo dominante: NO OPERAR y explica que confirmacion esperarias.
 - Numeros concretos, nada de generalidades.
 - Cada afirmacion de contexto debe tener fuente con URL real de los datos recibidos.
@@ -119,13 +117,14 @@ def generate(data):
     )
     return (resp.choices[0].message.content or "").strip()
 
-def send_ntfy(text):
+def send_ntfy(text, fecha):
+    title = f"Boletin ORO · {fecha}"
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
         f.write(text); tmp = f.name
     try:
         r = subprocess.run(
             ["curl","-s","-w","\nHTTP:%{http_code}",
-             "-H","Title: Boletin ORO","-H","Priority: high","-H","Tags: moneybag",
+             "-H",f"Title: {title}","-H","Priority: high","-H","Tags: moneybag",
              "--data-binary",f"@{tmp}", NTFY_URL],
             capture_output=True, text=True, timeout=30)
         code = next((l.split(":")[1] for l in r.stdout.splitlines() if l.startswith("HTTP:")), "?")
@@ -136,11 +135,12 @@ def send_ntfy(text):
 def main():
     print(f"=== Boletin ORO | UTC {datetime.utcnow():%Y-%m-%d %H:%M} ===")
     if not check_schedule(): sys.exit(0)
+    fecha = get_fecha_hoy()
     data = gather_data()
     bulletin = generate(data)
     if not bulletin: print("[ERROR] Sin respuesta"); sys.exit(1)
     print(bulletin[:300])
-    if not send_ntfy(bulletin): sys.exit(1)
+    if not send_ntfy(bulletin, fecha): sys.exit(1)
     print("[OK] Boletin enviado.")
 
 if __name__ == "__main__": main()
